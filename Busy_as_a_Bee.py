@@ -3,71 +3,71 @@ from tkinter import ttk, messagebox
 import threading
 import time
 from pynput.mouse import Controller, Button
-from pynput.keyboard import Listener, Key, KeyCode  # Importato KeyCode per gestire i caratteri
+from pynput.keyboard import Listener, Key, KeyCode  # Imported KeyCode to handle character keys
 
 import os
 
-# Variabili globali per controllare lo stato del clicker
-mouse = Controller()  # Controller per il mouse
-clicking_active = False  # Flag per indicare se il clicker è attivo
-click_thread = None  # Thread per il processo di auto-clicking
-keyboard_listener_thread = None  # Thread per il listener della tastiera (per l'hotkey principale)
-hotkey_capture_listener = None  # Listener temporaneo per la cattura della nuova hotkey
-current_hotkey = Key.f6  # Hotkey predefinita iniziale (ora variabile globale)
+# Global variables to control the clicker state
+mouse = Controller()  # Mouse controller
+clicking_active = False  # Flag to indicate if the clicker is active
+click_thread = None  # Thread for the auto-clicking process
+keyboard_listener_thread = None  # Thread for the main hotkey listener
+hotkey_capture_listener = None  # Temporary listener for new hotkey capture
+current_hotkey = Key.f6  # Initial default hotkey (now a global variable)
 
-# Valori predefiniti per intervallo e ripetizioni
-default_interval = 60.0  # Intervallo predefinito in secondi
-default_repetitions = 0  # Numero di ripetizioni predefinito (0 per infiniti click)
+# Default values for interval and repetitions
+default_interval = 60 # Default interval in seconds
+default_repetitions = 0  # Default number of repetitions (0 for infinite clicks)
 
 
 # noinspection PyTypeChecker
 def auto_click_loop(interval, repetitions):
     """
-    Simula i click del mouse in un ciclo, basandosi sull'intervallo e il numero di ripetizioni.
-    Questa funzione viene eseguita in un thread separato per non bloccare l'interfaccia grafica.
+    Simulates mouse clicks in a loop, based on the interval and number of repetitions.
+    This function runs in a separate thread to avoid blocking the graphical interface.
     """
     global clicking_active
     count = 0
 
-    # Per garantire che il primo click sia preceduto dall'intervallo,
-    # eseguiamo la pausa all'inizio di ogni iterazione del ciclo.
+    # To ensure the first click is preceded by the interval,
+    # we perform the pause at the beginning of each loop iteration.
     while clicking_active and (repetitions == 0 or count < repetitions):
-        # Implementa uno "sleep" non bloccante: invece di dormire per l'intero intervallo,
-        # dorme per brevi periodi e controlla il flag 'clicking_active' frequentemente.
-        # Questo permette al clicker di fermarsi quasi istantaneamente quando richiesto.
+        # Implements a non-blocking "sleep": instead of sleeping for the entire interval,
+        # it sleeps for short periods and frequently checks the 'clicking_active' flag.
+        # This allows the clicker to stop almost instantly when requested.
         start_time = time.time()
         while time.time() - start_time < interval and clicking_active:
-            time.sleep(0.05)  # Piccola pausa per consentire controlli frequenti
+            time.sleep(0.05)  # Small pause to allow frequent checks
 
-        # Se il clicker è stato disattivato durante la pausa, esci dal ciclo
+        # If the clicker was deactivated during the pause, exit the loop
         if not clicking_active:
             break
 
-        mouse.click(Button.left)  # Esegue un click sinistro del mouse
+        mouse.click(Button.left)  # Performs a left mouse click
         count += 1
 
-        # Aggiorna lo stato nell'interfaccia grafica (ad esempio, il conteggio dei click)
-        # Usiamo app.after(0, ...) per eseguire l'aggiornamento sul thread principale di Tkinter
+        # Updates the status in the graphical interface (e.g., click count)
+        # We use app.after(0, ...) to run the update on the main Tkinter thread
         if repetitions > 0:
             # noinspection PyTypeChecker
             app.after(0, lambda: status_label.config(text=f"Stato: Attivo ({count}/{repetitions} clic)",
-                                                     foreground="#BD93F9"))  # Colore più luminoso per "attivo"
+                                                     foreground="#BD93F9"))  # Brighter color for "active"
 
-    # Se il ciclo è terminato a causa del raggiungimento del limite di ripetizioni (non per un arresto manuale)
+    # If the loop ended due to reaching the repetition limit (not by manual stop)
     if clicking_active:
-        app.after(0, stop_clicking)  # Chiama la funzione di stop sul thread principale di Tkinter
+        app.after(0, stop_clicking)  # Calls the stop function on the main Tkinter thread
 
 
 def start_clicking():
-    """Avvia il processo di auto-clicking."""
+    """Starts the auto-clicking process."""
     global clicking_active, click_thread
-    if not clicking_active:  # Avvia solo se non è già attivo
+    if not clicking_active:  # Starts only if not already active
         try:
-            # Recupera i valori di intervallo e ripetizioni dagli input dell'utente
+            # Retrieves interval and repetition values from user input
             interval = float(interval_var.get())
             repetitions = int(repetitions_var.get())
 
-            # Validazione degli input
+            # Input validation
             if interval <= 0:
                 messagebox.showerror("Errore", "L'intervallo deve essere maggiore di zero.")
                 return
@@ -75,51 +75,51 @@ def start_clicking():
                 messagebox.showerror("Errore", "Il numero di ripetizioni non può essere negativo.")
                 return
 
-            # Imposta lo stato del clicker su attivo e aggiorna l'interfaccia grafica
+            # Sets the clicker status to active and updates the GUI
             clicking_active = True
-            status_label.config(text="WORKING", foreground="#FFDB38")  # Colore più luminoso per "attivo"
+            status_label.config(text="WORKING", foreground="#FFDB38")  # Brighter color for "active"
             start_button.config(text="STOP WORKING", command=stop_clicking,
-                                style='Active.TButton')  # Cambia il testo e applica stile
+                                style='Active.TButton')  # Changes text and applies style
 
-            # Disabilita gli input e il pulsante di cambio hotkey mentre il clicker è attivo
+            # Disables inputs and the hotkey change button while the clicker is active
             interval_entry.config(state='disabled')
             repetitions_entry.config(state='disabled')
-            # Verifica se change_hotkey_button è stato creato prima di disabilitarlo
+            # Checks if change_hotkey_button has been created before disabling it
             if 'change_hotkey_button' in globals() and change_hotkey_button.winfo_exists():
                 change_hotkey_button.config(state='disabled')
 
-            # Avvia la funzione 'auto_click_loop' in un nuovo thread
+            # Starts the 'auto_click_loop' function in a new thread
             click_thread = threading.Thread(target=auto_click_loop, args=(interval, repetitions))
-            click_thread.daemon = True  # Imposta il thread come "daemon" per consentire al programma principale di chiudersi anche se il thread è ancora in esecuzione
+            click_thread.daemon = True  # Sets the thread as "daemon" to allow the main program to close even if the thread is still running
             click_thread.start()
         except ValueError:
             messagebox.showerror("Errore", "Inserisci valori numerici validi per intervallo e ripetizioni.")
     else:
-        # Se il clicker è già attivo, il pulsante funge da "Ferma"
+        # If the clicker is already active, the button acts as "Stop"
         stop_clicking()
 
 
 def stop_clicking():
-    """Ferma il processo di auto-clicking."""
+    """Stops the auto-clicking process."""
     global clicking_active, click_thread
-    if clicking_active:  # Ferma solo se è attivo
-        clicking_active = False  # Imposta il flag su False per segnalare al thread di click di fermarsi
-        status_label.config(text="Bzzing Around", foreground="#FF5555")  # Colore più scuro per "inattivo"
+    if clicking_active:  # Stops only if active
+        clicking_active = False  # Sets the flag to False to signal the click thread to stop
+        status_label.config(text="Bzzing Around", foreground="#FF5555")  # Darker color for "inactive"
         start_button.config(text="GO TO WORK", command=start_clicking,
-                            style='Dark.TButton')  # Ripristina il testo e lo stile
+                            style='Dark.TButton')  # Restores text and style
 
-        # Riabilita gli input e il pulsante di cambio hotkey quando il clicker è inattivo
+        # Re-enables inputs and the hotkey change button when the clicker is inactive
         interval_entry.config(state='normal')
         repetitions_entry.config(state='normal')
-        # Verifica se change_hotkey_button è stato creato prima di abilitarlo
+        # Checks if change_hotkey_button has been created before enabling it
         if 'change_hotkey_button' in globals() and change_hotkey_button.winfo_exists():
             change_hotkey_button.config(state='normal')
 
-        # Il thread 'auto_click_loop' uscirà automaticamente dal suo ciclo quando rileva che 'clicking_active' è False.
+        # The 'auto_click_loop' thread will automatically exit its loop when it detects 'clicking_active' is False.
 
 
 def on_hotkey_pressed():
-    """Funzione che viene chiamata quando l'hotkey (F6) viene attivata."""
+    """Function called when the hotkey (F6) is activated."""
     if clicking_active:
         stop_clicking()
     else:
@@ -128,72 +128,72 @@ def on_hotkey_pressed():
 
 def on_press(key):
     """
-    Funzione di callback per il listener della tastiera di pynput.
-    Viene richiamata ogni volta che un tasto viene premuto.
+    Callback function for the pynput keyboard listener.
+    It is called every time a key is pressed.
     """
     global clicking_active, current_hotkey
 
-    # Questo controllo gestisce sia i tasti 'Key' (speciali) che 'KeyCode' (caratteri normali)
-    # Verifica se il tasto premuto corrisponde all'hotkey corrente
+    # This check handles both 'Key' (special keys) and 'KeyCode' (normal characters) keys
+    # Checks if the pressed key matches the current hotkey
     if key == current_hotkey:
         app.after(0, on_hotkey_pressed)
     elif isinstance(current_hotkey, KeyCode) and hasattr(key, 'char') and key.char:
-        # Gestisce il caso in cui l'hotkey sia un carattere (es. 'a') e il tasto premuto è un carattere
+        # Handles the case where the hotkey is a character (e.g., 'a') and the pressed key is a character
         if key.char.lower() == current_hotkey.char.lower():
             app.after(0, on_hotkey_pressed)
 
 
 def setup_hotkey_listener():
-    """Imposta e avvia il listener globale della tastiera in un thread separato."""
+    """Sets up and starts the global keyboard listener in a separate thread."""
     global keyboard_listener_thread
-    # Ferma il listener esistente se è attivo per riavviarlo con la nuova hotkey
+    # Stops the existing listener if active to restart it with the new hotkey
     if keyboard_listener_thread is not None and keyboard_listener_thread.is_alive():
         keyboard_listener_thread.stop()
-        keyboard_listener_thread.join()  # Assicurati che il thread sia terminato
+        keyboard_listener_thread.join()  # Ensures the thread has terminated
 
     keyboard_listener_thread = Listener(on_press=on_press)
-    keyboard_listener_thread.daemon = True  # Cruciale per una chiusura pulita dell'applicazione
+    keyboard_listener_thread.daemon = True  # Crucial for a clean application shutdown
     keyboard_listener_thread.start()
-    update_hotkey_status_label()  # Aggiorna l'etichetta per mostrare la hotkey corrente
+    update_hotkey_status_label()  # Updates the label to show the current hotkey
 
 
 def update_hotkey_status_label():
-    """Aggiorna l'etichetta di stato dell'hotkey con il tasto corrente."""
+    """Updates the hotkey status label with the current key."""
     global current_hotkey
     key_name = ""
     if hasattr(current_hotkey, 'name'):
-        key_name = current_hotkey.name.upper()  # Per tasti speciali come 'f6', 'space', etc.
+        key_name = current_hotkey.name.upper()  # For special keys like 'f6', 'space', etc.
     elif hasattr(current_hotkey, 'char'):
-        key_name = current_hotkey.char.upper()  # Per caratteri normali
+        key_name = current_hotkey.char.upper()  # For normal characters
     else:
-        key_name = str(current_hotkey).upper()  # Fallback per altri casi
+        key_name = str(current_hotkey).upper()  # Fallback for other cases
 
     status_label_hotkey.config(text=f"Hotkey: {key_name}", foreground="#8BE9FD")
 
 
 def start_hotkey_capture():
     """
-    Avvia la modalità di cattura di un nuovo tasto per l'hotkey.
-    Disabilita temporaneamente l'interfaccia utente principale e avvia un listener
-    dedicato a catturare il prossimo tasto premuto.
+    Starts the new hotkey capture mode.
+    Temporarily disables the main user interface and starts a dedicated listener
+    to capture the next key pressed.
     """
     global hotkey_capture_listener, keyboard_listener_thread
 
-    # Disabilita tutti gli elementi interattivi della GUI
+    # Disables all interactive GUI elements
     start_button.config(state='disabled')
     interval_entry.config(state='disabled')
     repetitions_entry.config(state='disabled')
-    change_hotkey_button.config(state='disabled')  # Disabilita anche se stesso
+    change_hotkey_button.config(state='disabled')  # Disables itself as well
 
-    status_label.config(text="IMPOSTA HOTKEY", foreground="#FFDB38")
-    status_label_hotkey.config(text="Premi un tasto qualsiasi...", foreground="#BD93F9")
+    status_label.config(text="SET HOTKEY", foreground="#FFDB38")
+    status_label_hotkey.config(text="Press any key...", foreground="#BD93F9")
 
-    # Ferma il listener principale della tastiera per evitare conflitti durante la cattura
+    # Stops the main keyboard listener to avoid conflicts during capture
     if keyboard_listener_thread is not None and keyboard_listener_thread.is_alive():
         keyboard_listener_thread.stop()
-        keyboard_listener_thread.join()  # Aspetta che il thread si fermi
+        keyboard_listener_thread.join()  # Waits for the thread to stop
 
-    # Avvia un listener temporaneo che aspetta una singola pressione di tasto
+    # Starts a temporary listener that waits for a single key press
     hotkey_capture_listener = Listener(on_press=on_key_for_hotkey_capture)
     hotkey_capture_listener.daemon = True
     hotkey_capture_listener.start()
@@ -201,159 +201,159 @@ def start_hotkey_capture():
 
 def on_key_for_hotkey_capture(key):
     """
-    Callback per il listener temporaneo che cattura la nuova hotkey.
+    Callback for the temporary listener that captures the new hotkey.
     """
     global current_hotkey, hotkey_capture_listener
 
-    # Ferma il listener temporaneo subito dopo la prima pressione di tasto
-    # Rimosso hotkey_capture_listener.join() per evitare RuntimeError
+    # Stops the temporary listener immediately after the first key press
+    # Removed hotkey_capture_listener.join() to avoid RuntimeError
     if hotkey_capture_listener is not None and hotkey_capture_listener.is_alive():
         hotkey_capture_listener.stop()
-        # hotkey_capture_listener.join() # Questa riga è stata rimossa per risolvere l'errore
+        # hotkey_capture_listener.join() # This line was removed to fix the error
 
-    current_hotkey = key  # Imposta il tasto catturato come nuova hotkey
-    hotkey_capture_listener = None  # Resetta il riferimento del listener temporaneo
+    current_hotkey = key  # Sets the captured key as the new hotkey
+    hotkey_capture_listener = None  # Resets the temporary listener reference
 
-    # Riavvia l'interfaccia grafica e il listener principale
+    # Restarts the GUI and the main listener
     app.after(0, finish_hotkey_capture)
 
 
 def finish_hotkey_capture():
     """
-    Ripristina l'interfaccia grafica e riavvia il listener principale dopo la cattura dell'hotkey.
+    Restores the GUI and restarts the main listener after hotkey capture.
     """
-    # Riabilita gli elementi interattivi della GUI
+    # Re-enables interactive GUI elements
     start_button.config(state='normal')
     interval_entry.config(state='normal')
     repetitions_entry.config(state='normal')
-    change_hotkey_button.config(state='normal')  # Riabilita il pulsante di cambio hotkey
+    change_hotkey_button.config(state='normal')  # Re-enables the hotkey change button
 
-    status_label.config(text="Bzzing Around", foreground="#FF5555")  # Ripristina lo stato IDLE
-    setup_hotkey_listener()  # Riavvia il listener principale con la nuova hotkey
+    status_label.config(text="Bzzing Around", foreground="#FF5555")  # Restores IDLE status
+    setup_hotkey_listener()  # Restarts the main listener with the new hotkey
 
 
-# --- Configurazione dell'Interfaccia Grafica (GUI) ---
+# --- GUI Configuration ---
 app = tk.Tk()
 
 app.title("Busy as a Bee")
-app.geometry("300x215")  # Aumentato leggermente l'altezza per ospitare il nuovo pulsante
-app.resizable(False, False)  # Non ridimensionabile
+app.geometry("300x215")  # Slightly increased height to accommodate the new button
+app.resizable(False, False)  # Not resizable
 
-# Inserimento dell'icona personalizzata
-# Ottieni la directory corrente dello script per trovare il file icona
+# Inserting custom icon
+# Gets the current script directory to find the icon file
 script_dir = os.path.dirname(__file__)
-icon_path = os.path.join(script_dir, "icon1.ico")  # Assicurati che 'icona.ico' sia nella stessa cartella
+icon_path = os.path.join(script_dir, "icon1.ico")  # Make sure 'icon1.ico' is in the same folder
 
 try:
     app.iconbitmap(icon_path)
 except tk.TclError:
-    # Gestisce il caso in cui il file icona non venga trovato o sia corrotto
-    messagebox.showwarning("Icona mancante",
-                           f"Impossibile caricare l'icona da {icon_path}. Assicurati che il file 'icon1.ico' esista e sia valido.")
+    # Handles the case where the icon file is not found or is corrupted
+    messagebox.showwarning("Icon Missing",
+                           f"Unable to load icon from {icon_path}. Make sure the file 'icon1.ico' exists and is valid.")
 
-# Colori per il tema scuro (Dark Theme)
-DARK_BG = "#282A36"  # Sfondo principale (ripristinato)
-LIGHT_TEXT = "#F8F8F2"  # Testo chiaro
-ACCENT_COLOR = "#FFDB38"  # Colore di accento (giallo)
-BUTTON_BG = "#44475A"  # Sfondo pulsanti (ripristinato)
-BUTTON_FG = LIGHT_TEXT  # Testo pulsanti
-ENTRY_BG = "#6272A4"  # Sfondo campi di input (ripristinato)
-ENTRY_FG = LIGHT_TEXT  # Testo campi di input
+# Colors for the dark theme
+DARK_BG = "#282A36"  # Main background (restored)
+LIGHT_TEXT = "#F8F8F2"  # Light text
+ACCENT_COLOR = "#FFDB38"  # Accent color (yellow)
+BUTTON_BG = "#44475A"  # Button background (restored)
+BUTTON_FG = LIGHT_TEXT  # Button text
+ENTRY_BG = "#6272A4"  # Input field background (restored)
+ENTRY_FG = LIGHT_TEXT  # Input field text
 
-app.config(bg=DARK_BG)  # Imposta lo sfondo della finestra principale
+app.config(bg=DARK_BG)  # Sets the main window background
 
-# Stile ttk
+# ttk Style
 app.style = ttk.Style()
-app.style.theme_use('clam')  # Un tema neutro come base per le modifiche
+app.style.theme_use('clam')  # A neutral theme as a base for modifications
 
-# Configura stili personalizzati
+# Configure custom styles
 app.style.configure('TFrame', background=DARK_BG)
 app.style.configure('TLabel', background=DARK_BG, foreground=LIGHT_TEXT,
-                    font=("Helvetica", 9))  # Font leggermente più piccolo
+                    font=("Helvetica", 9))  # Slightly smaller font
 app.style.configure('Dark.TButton',
                     background=BUTTON_BG,
                     foreground=BUTTON_FG,
                     font=("Helvetica", 10, "bold"),
-                    relief="flat",  # Rimuovi il bordo predefinito
-                    padding=[10, 5])  # Ridotto il padding verticale per i pulsanti
+                    relief="flat",  # Removes default border
+                    padding=[10, 5])  # Reduced vertical padding for buttons
 app.style.map('Dark.TButton',
-              background=[('active', ACCENT_COLOR)],  # Colore all'hover
-              foreground=[('active', DARK_BG)])  # Testo al hover
+              background=[('active', ACCENT_COLOR)],  # Color on hover
+              foreground=[('active', DARK_BG)])  # Text on hover
 
-# NUOVO STILE: Stile per il pulsante attivo (quando il clicker è in funzione)
+# NEW STYLE: Style for the active button (when the clicker is running)
 app.style.configure('Active.TButton',
-                    background='#FFDB38',  # Colore giallo richiesto
-                    foreground=DARK_BG,  # Testo scuro per contrasto sul giallo
+                    background='#FFDB38',  # Required yellow color
+                    foreground=DARK_BG,  # Dark text for contrast on yellow
                     font=("Helvetica", 10, "bold"),
                     relief="flat",
                     padding=[10, 5])
 app.style.map('Active.TButton',
               background=[('active', '#FFDB38'), ('pressed', '#FFDB38')],
-              # Mantieni il colore giallo anche all'hover/pressione
+              # Keep yellow color also on hover/press
               foreground=[('active', DARK_BG), ('pressed', DARK_BG)])
 
 app.style.configure('TEntry', fieldbackground=ENTRY_BG, foreground=ENTRY_FG, insertbackground=LIGHT_TEXT)
 
-# Frame principale che contiene tutto per un layout più controllato
-main_frame = ttk.Frame(app, padding="15")  # Ridotto il padding generale
-main_frame.pack(expand=True, fill="both")  # Espande per riempire la finestra
+# Main frame containing everything for a more controlled layout
+main_frame = ttk.Frame(app, padding="15")  # Reduced general padding
+main_frame.pack(expand=True, fill="both")  # Expands to fill the window
 
-# Input per l'intervallo
-ttk.Label(main_frame, text="Range (sec):").grid(row=0, column=0, padx=5, pady=3, sticky="w")  # Padding ridotto
+# Input for interval
+ttk.Label(main_frame, text="Range (sec):").grid(row=0, column=0, padx=5, pady=3, sticky="w")  # Reduced padding
 interval_var = tk.DoubleVar(value=default_interval)
-interval_entry = ttk.Entry(main_frame, textvariable=interval_var, width=10)  # Larghezza ridotta
+interval_entry = ttk.Entry(main_frame, textvariable=interval_var, width=10)  # Reduced width
 interval_entry.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
 
-# Input per le ripetizioni
-ttk.Label(main_frame, text="Repeat (0=inf):").grid(row=1, column=0, padx=5, pady=3, sticky="w")  # Padding ridotto
+# Input for repetitions
+ttk.Label(main_frame, text="Repeat (0=inf):").grid(row=1, column=0, padx=5, pady=3, sticky="w")  # Reduced padding
 repetitions_var = tk.IntVar(value=default_repetitions)
-repetitions_entry = ttk.Entry(main_frame, textvariable=repetitions_var, width=10)  # Larghezza ridotta
+repetitions_entry = ttk.Entry(main_frame, textvariable=repetitions_var, width=10)  # Reduced width
 repetitions_entry.grid(row=1, column=1, padx=5, pady=3, sticky="ew")
 
-# Configurazione delle colonne per espansione
+# Column configuration for expansion
 main_frame.columnconfigure(1, weight=1)
 
-# Pulsante Avvia/Ferma Clic
+# Start/Stop Click Button
 start_button = ttk.Button(main_frame, text="GO TO WORK", command=start_clicking, style='Dark.TButton')
-start_button.grid(row=2, column=0, columnspan=2, pady=10, sticky="ew")  # Occupa entrambe le colonne e centrato
+start_button.grid(row=2, column=0, columnspan=2, pady=10, sticky="ew")  # Occupies both columns and centered
 
-# Etichette di stato
+# Status labels
 status_label = ttk.Label(main_frame, text="Bzzing Around", font=("Helvetica", 11, "bold"), foreground="#FF5555")
-status_label.grid(row=4, column=0, columnspan=2, pady=(5, 0))  # Centrato
+status_label.grid(row=4, column=0, columnspan=2, pady=(5, 0))  # Centered
 status_label_hotkey = ttk.Label(main_frame, text="Hotkey: Inattiva", font=("Helvetica", 9), foreground="#A3A3A3")
-status_label_hotkey.grid(row=5, column=0, columnspan=2, pady=(0, 5))  # Centrato
+status_label_hotkey.grid(row=5, column=0, columnspan=2, pady=(0, 5))  # Centered
 
-# Nuovo pulsante per impostare l'hotkey
-change_hotkey_button = ttk.Button(main_frame, text="Imposta Hotkey", command=start_hotkey_capture, style='Dark.TButton')
+# New button to set hotkey
+change_hotkey_button = ttk.Button(main_frame, text="Set Hotkey", command=start_hotkey_capture, style='Dark.TButton')
 change_hotkey_button.grid(row=3, column=0, columnspan=2, pady=(5, 0), sticky="ew")
 
-# --- Avvio iniziale ---
-# Avvia il listener dell'hotkey poco dopo che la GUI è stata impostata,
-# per evitare di bloccare il processo di avvio dell'interfaccia.
+# --- Initial startup ---
+# Starts the hotkey listener shortly after the GUI is set up,
+# to avoid blocking the GUI startup process.
 app.after(100, setup_hotkey_listener)
 
 
-# Funzione per gestire la chiusura della finestra in modo elegante
+# Function to handle graceful window closing
 def on_closing():
     global clicking_active
-    clicking_active = False  # Segnala al thread di click di fermarsi
+    clicking_active = False  # Signals the click thread to stop
 
-    # Ferma esplicitamente il listener della tastiera principale
+    # Explicitly stops the main keyboard listener
     if keyboard_listener_thread is not None and keyboard_listener_thread.is_alive():
-        keyboard_listener_thread.stop()  # Importante per rilasciare le risorse di sistema
+        keyboard_listener_thread.stop()  # Important for releasing system resources
         keyboard_listener_thread.join()
 
-    # Ferma esplicitamente il listener temporaneo per la cattura dell'hotkey
+    # Explicitly stops the temporary hotkey capture listener
     if hotkey_capture_listener is not None and hotkey_capture_listener.is_alive():
         hotkey_capture_listener.stop()
-        # Non chiamare .join() qui, poiché il thread potrebbe essere quello corrente
+        # Do not call .join() here, as the thread might be the current one
         # hotkey_capture_listener.join()
 
-    app.destroy()  # Distrugge la finestra dell'applicazione
+    app.destroy()  # Destroys the application window
 
 
-# Associa la funzione on_closing all'evento di chiusura della finestra
+# Associates the on_closing function with the window close event
 app.protocol("WM_DELETE_WINDOW", on_closing)
 
-# Avvia il loop principale dell'applicazione Tkinter
+# Starts the main Tkinter application loop
 app.mainloop()
