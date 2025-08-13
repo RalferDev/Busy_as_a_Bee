@@ -339,12 +339,12 @@ def on_closing():
     clicking_active = False  # Signals the click thread to stop
 
     # Explicitly stops the main keyboard listener
-    if keyboard_listener_thread is not None and keyboard_listener_thread.is_alive():
+    if keyboard_listener_thread and keyboard_listener_thread.is_alive():
         keyboard_listener_thread.stop()  # Important for releasing system resources
         keyboard_listener_thread.join()
 
     # Explicitly stops the temporary hotkey capture listener
-    if hotkey_capture_listener is not None and hotkey_capture_listener.is_alive():
+    if hotkey_capture_listener and hotkey_capture_listener.is_alive():
         hotkey_capture_listener.stop()
         # Do not call .join() here, as the thread might be the current one
         # hotkey_capture_listener.join()
