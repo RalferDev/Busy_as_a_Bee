@@ -157,13 +157,13 @@ app.resizable(False, False)  # Non ridimensionabile
 # Inserimento dell'icona personalizzata
 # Ottieni la directory corrente dello script per trovare il file icona
 script_dir = os.path.dirname(__file__)
-icon_path = os.path.join(script_dir, "icona.ico") # Assicurati che 'icona.ico' sia nella stessa cartella
+icon_path = os.path.join(script_dir, "icon1.ico") # Assicurati che 'icona.ico' sia nella stessa cartella
 
 try:
     app.iconbitmap(icon_path)
 except tk.TclError:
     # Gestisce il caso in cui il file icona non venga trovato o sia corrotto
-    messagebox.showwarning("Icona mancante", f"Impossibile caricare l'icona da {icon_path}. Assicurati che il file 'icona.ico' esista e sia valido.")
+    messagebox.showwarning("Icona mancante", f"Impossibile caricare l'icona da {icon_path}. Assicurati che il file 'icon1.ico' esista e sia valido.")
 
 
 # Colori per il tema scuro (Dark Theme)
